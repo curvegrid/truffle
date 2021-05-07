@@ -4,6 +4,8 @@ import * as EthUtil from "ethereumjs-util";
 import ethJSWallet from "ethereumjs-wallet";
 import { hdkey as EthereumHDKey } from "ethereumjs-wallet";
 import { Transaction } from "ethereumjs-tx";
+import Common from "ethereumjs-common";
+import { chains } from "ethereumjs-common/dist/chains";
 // @ts-ignore
 import ProviderEngine from "@trufflesuite/web3-provider-engine";
 import FiltersSubprovider from "@trufflesuite/web3-provider-engine/subproviders/filters";
@@ -158,7 +160,17 @@ class HDWalletProvider {
           const chain = (chainId && typeof chainId === "string") ?
             parseInt(chainId) :
             chainId;
-          const tx = new Transaction(txParams, { chain });
+          const chainName = typeof chain === "string" ? chain :
+                            typeof chain === "number" ? chains.names[chain] : 
+                            undefined;
+          if (!chainName) throw new Error("a chain id or name must be provided");
+          const latestHardfork = (chain: string) => chains[chain].hardforks[chains[chain].hardforks.length - 1].name;
+          const opts = chains[chainName] ? 
+            // use the latest hardfork of a known chain...
+            { chain, hardfork: latestHardfork(chainName) } : 
+            // ... or use a custom chain implementation, pretended to be based from mainnet
+            { common: Common.forCustomChain('mainnet', { chainId: typeof chain === 'number' ? chain : undefined }, latestHardfork('mainnet')) };
+          const tx = new Transaction(txParams, opts);
           tx.sign(pkey as Buffer);
           const rawTx = `0x${tx.serialize().toString("hex")}`;
           cb(null, rawTx);
